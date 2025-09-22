@@ -40,6 +40,7 @@ let painting = false;
 let brushSize = 5;
 let brushColor = '#ffffff';
 let lastPos = null;
+let mousePos = {x:0, y:0};
 
 // Selection tool variables
 let selectionMode = false;
@@ -76,15 +77,23 @@ canvas.addEventListener('mouseout', () => {
     lastPos = null;
 });
 
+// Mouse movement
 canvas.addEventListener('mousemove', e => {
     const pos = getMousePos(e);
+    mousePos = pos;
     if(selectionMode && selectionStart) {
         selectionRect.w = pos.x - selectionStart.x;
         selectionRect.h = pos.y - selectionStart.y;
         redrawCanvas();
         drawSelectionRect();
+        drawBrushCircle(mousePos);
     }
-    if(!painting) return;
+    if(!painting) {
+        redrawCanvas();
+        drawSelectionRect();
+        drawBrushCircle(mousePos);
+        return;
+    }
     if(selectionRect) {
         // check if pos is inside selection
         if(!isInsideSelection(pos)) return;
@@ -97,6 +106,10 @@ canvas.addEventListener('mousemove', e => {
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
     lastPos = pos;
+
+    redrawCanvas(); // redraw overlay
+    drawSelectionRect();
+    drawBrushCircle(mousePos);
 });
 
 // Get mouse position
@@ -126,7 +139,19 @@ function drawSelectionRect() {
     ctx.restore();
 }
 
-// Redraw canvas (used during selection)
+// Draw brush size circle
+function drawBrushCircle(pos) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, brushSize/2, 0, Math.PI*2);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,2]);
+    ctx.stroke();
+    ctx.restore();
+}
+
+// Redraw canvas (used during selection or hover)
 function redrawCanvas() {
     const image = ctx.getImageData(0,0,canvas.width,canvas.height);
     ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -151,6 +176,7 @@ document.addEventListener('keydown', e => {
         selectionRect = null;
         selectionStart = null;
         redrawCanvas();
+        drawBrushCircle(mousePos);
     }
 });
 
@@ -159,6 +185,9 @@ canvas.addEventListener('wheel', e => {
     e.preventDefault();
     if(e.deltaY < 0) brushSize = Math.min(brushSize + 1, 50);
     else brushSize = Math.max(1, brushSize - 1);
+    redrawCanvas();
+    drawSelectionRect();
+    drawBrushCircle(mousePos);
 });
 
 // Save, Save As, New, Load
