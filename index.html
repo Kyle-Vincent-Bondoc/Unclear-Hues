@@ -40,10 +40,10 @@
 <div>
     <button id="submitBtn">Submit</button>
     <button onclick="newColor()">Next Color</button>
+    <button id="revealBtn">Reveal Color</button>
 </div>
 <div id="score">Score: 0</div>
 <div id="spectrums">Spectrums: 0</div>
-<p><b>Click <a href="paint.html">here</a></b> to go to a paint tool.</p>
 
 <script>
 const canvas = document.getElementById('colorCanvas');
@@ -53,9 +53,10 @@ const height = canvas.height;
 const center = {x: width/2, y: height/2};
 let targetColor, score = 0, spectrums = 0;
 let guess = null;
+let isRevealing = false;
 
 // Draw the circular color graph
-function drawColorWheel(saturation = 1) {
+function drawColorWheel(saturation = 1, reveal=false) {
     const radius = width/2 - 2;
     const imageData = ctx.createImageData(width, height);
     for (let x = 0; x < width; x++) {
@@ -85,6 +86,21 @@ function drawColorWheel(saturation = 1) {
         ctx.strokeStyle = '#FFF';
         ctx.lineWidth = 3;
         ctx.stroke();
+    }
+
+    // Show reveal marker
+    if(reveal) {
+        const rad = targetColor.lightness * radius;
+        const angleRad = targetColor.hue * Math.PI / 180;
+        const x = center.x + rad * Math.cos(angleRad);
+        const y = center.y + rad * Math.sin(angleRad);
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, 2*Math.PI);
+        ctx.strokeStyle = 'yellow';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5,5]);
+        ctx.stroke();
+        ctx.setLineDash([]);
     }
 }
 
@@ -136,7 +152,7 @@ canvas.addEventListener('click', (e) => {
     drawColorWheel(targetColor.saturation);
 });
 
-// Submit button scoring
+// Submit button scoring with reveal
 document.getElementById('submitBtn').addEventListener('click', () => {
     if(!guess) return; // no guess made
     const dx = guess.x - center.x;
@@ -161,8 +177,19 @@ document.getElementById('submitBtn').addEventListener('click', () => {
     document.getElementById('score').innerText = `Score: ${score}`;
     document.getElementById('spectrums').innerText = `Spectrums: ${spectrums}`;
 
+    // Reveal color for 5 seconds before next
+    isRevealing = true;
+    drawColorWheel(targetColor.saturation, true);
     guess = null;
-    newColor();
+    setTimeout(() => {
+        isRevealing = false;
+        newColor();
+    }, 5000);
+});
+
+// Reveal color button
+document.getElementById('revealBtn').addEventListener('click', () => {
+    drawColorWheel(targetColor.saturation, true);
 });
 
 // Start first round
