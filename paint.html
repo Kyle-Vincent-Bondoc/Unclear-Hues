@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mini Paint with Selection</title>
+<style>
+  body {
+    margin: 0;
+    background: #222;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+  }
+  canvas {
+    border: 2px solid #fff;
+    margin-top: 20px;
+    cursor: crosshair;
+  }
+  #info {
+    margin-top: 10px;
+    font-size: 16px;
+  }
+</style>
+</head>
+<body>
+<h1>Mini Paint with Selection</h1>
+<canvas id="paintCanvas" width="800" height="600"></canvas>
+<div id="info">
+Press C to change color | Scroll to change brush size | Ctrl+S Save | Ctrl+Shift+S Save As | Ctrl+N New | Ctrl+L Load | Ctrl+Alt+S Selection | ESC Cancel Selection
+</div>
+<p><b>Click <a href="index.html">here</a></b> to return to <b>Unclear Hues</b>.</p>
+
+<script>
+const canvas = document.getElementById('paintCanvas');
+const ctx = canvas.getContext('2d');
+let painting = false;
+let brushSize = 5;
+let brushColor = '#ffffff';
+let lastPos = null;
+
+// Selection tool variables
+let selectionMode = false;
+let selectionRect = null;
+let selectionStart = null;
+
+// Drawing
+canvas.addEventListener('mousedown', e => {
+    const pos = getMousePos(e);
+    if(selectionMode) {
+        selectionStart = pos;
+        selectionRect = {x: pos.x, y: pos.y, w:0, h:0};
+    } else {
+        painting = true;
+        lastPos = pos;
+    }
+});
+
+canvas.addEventListener('mouseup', e => {
+    if(selectionMode) {
+        if(selectionRect) {
+            // finalize selection
+            selectionRect.w = getMousePos(e).x - selectionStart.x;
+            selectionRect.h = getMousePos(e).y - selectionStart.y;
+        }
+    } else {
+        painting = false;
+        lastPos = null;
+    }
+});
+
+canvas.addEventListener('mouseout', () => {
+    painting = false;
+    lastPos = null;
+});
+
+canvas.addEventListener('mousemove', e => {
+    const pos = getMousePos(e);
+    if(selectionMode && selectionStart) {
+        selectionRect.w = pos.x - selectionStart.x;
+        selectionRect.h = pos.y - selectionStart.y;
+        redrawCanvas();
+        drawSelectionRect();
+    }
+    if(!painting) return;
+    if(selectionRect) {
+        // check if pos is inside selection
+        if(!isInsideSelection(pos)) return;
+    }
+    ctx.strokeStyle = brushColor;
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(lastPos.x, lastPos.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    lastPos = pos;
+});
+
+// Get mouse position
+function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+// Check if point inside selection
+function isInsideSelection(pos) {
+    if(!selectionRect) return true;
+    const x1 = Math.min(selectionRect.x, selectionRect.x + selectionRect.w);
+    const y1 = Math.min(selectionRect.y, selectionRect.y + selectionRect.h);
+    const x2 = Math.max(selectionRect.x, selectionRect.x + selectionRect.w);
+    const y2 = Math.max(selectionRect.y, selectionRect.y + selectionRect.h);
+    return pos.x >= x1 && pos.x <= x2 && pos.y >= y1 && pos.y <= y2;
+}
+
+// Draw selection rectangle
+function drawSelectionRect() {
+    if(!selectionRect) return;
+    ctx.save();
+    ctx.strokeStyle = '#fff';
+    ctx.setLineDash([5,5]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+    ctx.restore();
+}
+
+// Redraw canvas (used during selection)
+function redrawCanvas() {
+    const image = ctx.getImageData(0,0,canvas.width,canvas.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.putImageData(image,0,0);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+    if(e.key.toLowerCase() === 'c') {
+        const color = prompt("Enter color (name or hex):", brushColor);
+        if(color) brushColor = color;
+    }
+    if(e.ctrlKey && e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        selectionMode = true;
+        selectionStart = null;
+        selectionRect = null;
+        alert("Selection mode: click and drag to select area. ESC to cancel.");
+    }
+    if(e.key === "Escape") {
+        selectionMode = false;
+        selectionRect = null;
+        selectionStart = null;
+        redrawCanvas();
+    }
+});
+
+// Brush size with scroll
+canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    if(e.deltaY < 0) brushSize = Math.min(brushSize + 1, 50);
+    else brushSize = Math.max(1, brushSize - 1);
+});
+
+// Save, Save As, New, Load
+document.addEventListener('keydown', e => {
+    if(e.ctrlKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        const url = canvas.toDataURL();
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = e.shiftKey ? (prompt("Save as filename:", "paint.png")||"paint.png") : "paint.png";
+        link.click();
+    }
+    if(e.ctrlKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        if(confirm("Clear canvas?")) ctx.clearRect(0,0,canvas.width,canvas.height);
+    }
+    if(e.ctrlKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = event => {
+            const file = event.target.files[0];
+            const img = new Image();
+            img.onload = () => ctx.drawImage(img,0,0,canvas.width,canvas.height);
+            img.src = URL.createObjectURL(file);
+        };
+        input.click();
+    }
+});
+</script>
+</body>
+</html>
